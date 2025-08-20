@@ -1,0 +1,8 @@
+# Core dependencies for the multirec application
+PySide6>=6.5
+yt-dlp>=2024.0.0
+ffmpeg-python>=0.2
+pydantic>=1.10
+aiosqlite>=0.19
+PyYAML>=6.0
+structlog>=23.1
