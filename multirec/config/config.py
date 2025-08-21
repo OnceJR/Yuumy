@@ -20,10 +20,10 @@ Additional options may be added to this model as the application evolves.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
+import structlog
 import yaml
 from pydantic import BaseModel, Field, validator
 
@@ -60,23 +60,34 @@ class Config(BaseModel):
         return v
 
 
-def load_config(path: Optional[str] = None) -> Config:
-    """Loads configuration from a YAML file or returns defaults.
+logger = structlog.get_logger(__name__)
 
-    Args:
-        path: Optional path to a YAML configuration file.  If omitted, the
-            default config path ``~/.multirec/config.yaml`` is used if it exists.
 
-    Returns:
-        Config: Loaded configuration object.
-    """
-    default_path = Path.home() / ".multirec" / "config.yaml"
-    config_file = Path(path) if path else default_path
+def _resolve_config_file(path: Optional[str] = None) -> Path:
+    """Return the configuration file path, creating defaults if necessary."""
+    if path:
+        candidate = Path(path).expanduser()
+        if candidate.exists():
+            return candidate
+    project_cfg = Path.cwd() / "config.yaml"
+    if project_cfg.exists():
+        return project_cfg
+    fallback = Path.home() / ".multirec" / "config.yaml"
+    if not fallback.exists():
+        fallback.parent.mkdir(parents=True, exist_ok=True)
+        with open(fallback, "w", encoding="utf-8") as f:
+            yaml.safe_dump(Config().model_dump(mode="json"), f)
+    return fallback
+
+
+def load_config(path: Optional[str] = None) -> Tuple[Config, Path]:
+    """Loads configuration from a YAML file, returning the config and path used."""
+    config_file = _resolve_config_file(path)
     data: dict = {}
-    if config_file.exists():
+    try:
         with open(config_file, "r", encoding="utf-8") as f:
-            try:
-                data = yaml.safe_load(f) or {}
-            except yaml.YAMLError as e:
-                print(f"Warning: failed to parse config file {config_file}: {e}")
-    return Config(**data)
+            data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        logger.warning("failed to parse config file", config_path=str(config_file), error=str(e))
+    logger.info("loaded configuration", config_path=str(config_file))
+    return Config(**data), config_file
