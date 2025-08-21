@@ -11,19 +11,19 @@ recordings, start all pending tasks and gracefully cancel running tasks.
 
 import asyncio
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from ..config.config import Config
-from ..recorder.recorder import StreamRecorder, RecordingResult
+from ..recorder import recorder as recorder_module
 
 
 @dataclass
 class RecordingTask:
     url: str
     quality: str = "best"
-    recorder: Optional[StreamRecorder] = None
+    recorder: Optional[recorder_module.StreamRecorder] = None
     future: Optional[asyncio.Task] = None
-    result: Optional[RecordingResult] = None
+    result: Optional[recorder_module.RecordingResult] = None
 
 
 class Scheduler:
@@ -39,8 +39,16 @@ class Scheduler:
         task = RecordingTask(url=url, quality=quality)
         await self.queue.put(task)
 
-    async def _run_recorder(self, task: RecordingTask) -> RecordingResult:
-        recorder = StreamRecorder(
+    async def _run_recorder(self, task: RecordingTask) -> recorder_module.RecordingResult:
+        """Instantiate and run a ``StreamRecorder`` for the given task.
+
+        The recorder class is retrieved from ``recorder_module`` at runtime so
+        it can be monkeypatched in tests without needing to modify this
+        scheduler module.  This indirection avoids importing the class at module
+        import time which would otherwise freeze the reference.
+        """
+
+        recorder = recorder_module.StreamRecorder(
             channel_url=task.url,
             output_dir=self.download_dir,
             segment_duration=self.config.segment_duration_min,
@@ -81,4 +89,5 @@ class Scheduler:
         await self._worker_loop()
 
     async def shutdown(self) -> None:
+        """Request shutdown of all workers and stop scheduling new tasks."""
         self._cancelled = True
