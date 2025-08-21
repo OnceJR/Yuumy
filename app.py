@@ -50,7 +50,7 @@ async def main_async(config: Config) -> None:
 
 def main(config_path: Optional[str] = None) -> None:
     """Synchronously loads configuration and starts the event loop."""
-    config = load_config(config_path)
+    config, _ = load_config(config_path)
     configure_logging(config)
     try:
         asyncio.run(main_async(config))
